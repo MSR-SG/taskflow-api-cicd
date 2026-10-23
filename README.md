@@ -1,10 +1,111 @@
-# TaskFlow API
+# TaskFlow API CICD
 This API is prepare by **Mohammed Shafique Ur Razzaque**.
 
 It's a Spring Boot REST API for managing a personal task list.
 It has six TaskContoller endpoints using Spring Boot and two AI-powered AIContoller endpoints using Spring AI.
 
 Built with Java 21, Spring Boot 4.1.1, Spring AI 2.0.1, Lombok and Maven.
+
+The application is containerised with a multi-stage **Dockerfile** and deployed to **Railway**.
+
+**Live URL:** https://taskflow-api-cicd-production.up.railway.app/tasks
+
+Shows all tasks as a JSON object keyed by task id.
+
+**Live URL:** https://taskflow-api-cicd-production.up.railway.app/summary
+
+Uses Spring AI with the OpenAI API (served through OpenRouter's OpenAI-compatible endpoint)
+to summarise the tasks. It returns typed JSON with a short `summary`, the
+`countCompleted` and `countIncomplete` totals, and the `mostUrgentTask`.
+
+**Live URL:** https://taskflow-api-cicd-production.up.railway.app/summary-text
+
+Uses the same AI prompt to summarise the tasks, but returns the summary as plain-text
+prose instead of JSON. The exact wording varies per call.
+
+---
+
+## Deployment to Railway
+
+The app is deployed to [Railway](https://railway.app), which builds the image from
+the `Dockerfile` in this repository and runs the container.
+
+**Live URLs:**
+
+- https://taskflow-api-cicd-production.up.railway.app/tasks — all tasks
+- https://taskflow-api-cicd-production.up.railway.app/summary — AI summary of the tasks (JSON)
+- https://taskflow-api-cicd-production.up.railway.app/summary-text — AI summary of the tasks (plain text)
+
+Try them:
+
+```bash
+curl https://taskflow-api-cicd-production.up.railway.app/tasks
+curl https://taskflow-api-cicd-production.up.railway.app/summary
+curl https://taskflow-api-cicd-production.up.railway.app/summary-text
+```
+
+The `OPENAI_API_KEY` is set as a Railway service variable rather than committed to
+the repository, so the AI endpoints (`/summary`, `/summary-text`) work in production
+the same way they do locally.
+
+### Screenshots
+
+**Railway active deployment.** The `taskflow-api-cicd` service is *Online* in the
+Southeast Asia region, and its latest deployment from GitHub is marked **ACTIVE** with
+*Deployment successful*.
+
+![Railway active deployment](screenshots/RaiwayActiveDeployment.jpg)
+
+**Live `/tasks` endpoint.** `curl` against the Railway URL returns all four seeded
+tasks as JSON keyed by id.
+
+![Live URL /tasks](screenshots/LiveURL-tasks.jpg)
+
+**Live `/summary` endpoint.** The AI summary, generated through OpenRouter, comes back
+as typed JSON: 2 completed, 2 incomplete, with *Pack luggage* as the most urgent task.
+
+![Live URL /summary](screenshots/LiveURLWithOpenRouter-summary.jpg)
+
+**Live `/summary-text` endpoint.** The same AI summary returned as plain-text prose,
+naming *Pack luggage* (due 2026-10-28) as the most urgent pending task.
+
+![Live URL /summary-text](screenshots/LiveURLWithOpenRouter-summary-text.jpg)
+
+---
+
+## Docker
+
+The project ships with a two-stage `Dockerfile`:
+
+```dockerfile
+# Stage 1: Build the JAR with Maven
+FROM maven:3.9-eclipse-temurin-21 AS build
+WORKDIR /app
+COPY . .
+RUN mvn clean package -DskipTests
+
+# Stage 2: Run the JAR in a slim runtime image
+FROM eclipse-temurin:21-jre-alpine
+WORKDIR /app
+COPY --from=build /app/target/*.jar app.jar
+EXPOSE 8080
+CMD ["java", "-jar", "app.jar"]
+```
+
+- **Stage 1 (build)** uses the full Maven + JDK 21 image to compile the code and
+  package the executable jar.
+- **Stage 2 (run)** copies only that jar into a small Alpine-based JRE 21 image.
+  Maven, the JDK and the source code are left behind, so the final image is much
+  smaller and has less in it to attack.
+
+Build and run it locally:
+
+```bash
+docker build -t taskflow-api .
+docker run -p 8080:8080 -e OPENAI_API_KEY=your-openrouter-key-here taskflow-api
+```
+
+The app is then available at **http://localhost:8080/tasks**.
 
 ---
 
